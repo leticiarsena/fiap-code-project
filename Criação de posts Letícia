@@ -1,0 +1,191 @@
+1 - Estrutura básica do projeto
+
+blog-backend/
+ ├── prisma/
+ │   ├── schema.prisma
+ ├── src/
+ │   ├── index.ts
+ │   ├── routes/
+ │   │   ├── teacherRoutes.ts
+ │   │   ├── postRoutes.ts
+ │   ├── controllers/
+ │   │   ├── teacherController.ts
+ │   │   ├── postController.ts
+ ├── tsconfig.json
+ ├── package.json
+
+2 - Prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Teacher {
+  id    Int    @id @default(autoincrement())
+  name  String
+  email String @unique
+  posts Post[]
+}
+
+model Post {
+  id         Int      @id @default(autoincrement())
+  title      String
+  content    String
+  createdAt  DateTime @default(now())
+  teacherId  Int
+  teacher    Teacher  @relation(fields: [teacherId], references: [id])
+}
+
+3 - src/index.ts
+
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+import teacherRoutes from './routes/teacherRoutes';
+import postRoutes from './routes/postRoutes';
+
+const app = express();
+const prisma = new PrismaClient();
+
+app.use(express.json());
+
+// Rotas
+app.use('/teachers', teacherRoutes);
+app.use('/posts', postRoutes);
+
+app.get('/', (req, res) => {
+  res.send('API do Blog de Atividades para Professores');
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
+
+4 - src/routes/teacherRoutes.ts
+
+import { Router } from 'express';
+import * as teacherController from '../controllers/teacherController';
+
+const router = Router();
+
+router.post('/', teacherController.createTeacher);
+router.get('/', teacherController.getAllTeachers);
+
+export default router;
+
+5 - src/routes/postRoutes.ts
+
+import { Router } from 'express';
+import * as postController from '../controllers/postController';
+
+const router = Router();
+
+router.post('/', postController.createPost);
+router.get('/', postController.getAllPosts);
+
+export default router;
+
+6 - src/controllers/teacherController.ts
+
+import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export const createTeacher = async (req: Request, res: Response) => {
+  const { name, email } = req.body;
+
+  try {
+    const teacher = await prisma.teacher.create({
+      data: { name, email },
+    });
+    res.status(201).json(teacher);
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao criar professor' });
+  }
+};
+
+export const getAllTeachers = async (_req: Request, res: Response) => {
+  const teachers = await prisma.teacher.findMany();
+  res.json(teachers);
+};
+
+7 - src/controllers/postController.ts
+
+import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+export const createPost = async (req: Request, res: Response) => {
+  const { title, content, teacherId } = req.body;
+
+  try {
+    const post = await prisma.post.create({
+      data: {
+        title,
+        content,
+        teacherId,
+      },
+    });
+    res.status(201).json(post);
+  } catch (error) {
+    res.status(400).json({ error: 'Erro ao criar post' });
+  }
+};
+
+export const getAllPosts = async (_req: Request, res: Response) => {
+  const posts = await prisma.post.findMany({
+    include: {
+      teacher: true,
+    },
+  });
+  res.json(posts);
+};
+
+8 - .env
+
+DATABASE_URL="postgresql://usuario:senha@localhost:5432/blog_db"
+
+9 - tsconfig.json
+
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "commonjs",
+    "strict": true,
+    "outDir": "dist",
+    "esModuleInterop": true
+  },
+  "include": ["src"]
+}
+
+10 - Dependências
+
+No terminal:
+
+bash
+Copiar
+Editar
+npm init -y
+npm install express @prisma/client
+npm install -D typescript ts-node-dev prisma @types/express
+npx prisma init
+Depois:
+
+bash
+Copiar
+Editar
+npx prisma migrate dev --name init
+E para rodar:
+
+bash
+Copiar
+Editar
+npx ts-node-dev src/index.ts
